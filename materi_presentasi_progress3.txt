@@ -1,0 +1,601 @@
+================================================================================
+PANDUAN BELAJAR PRESENTASI & ANTISIPASI PERTANYAAN - PROGRESS 3 DATA SCIENCE
+Proyek: Prediksi Risiko Stroke Berdasarkan Indikator Medis dan Gaya Hidup
+Referensi: Progress 3 DS.pptx & strokePrediction_progress3.ipynb
+Anggota:
+- Munadhil Mutawakkil (123240154)
+- Dimas Hafid Fathoni (123240159)
+- Aditya Putra Septemberiao (123240216)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. RINGKASAN BESAR (30 DETIK ELEVATOR PITCH)
+--------------------------------------------------------------------------------
+Pada Progress 2, kita sudah membersihkan dataset stroke (5.109 baris, 10 fitur
+jadi 20 kolom setelah One-Hot Encoding) dan membagi data 80:20 secara
+stratified menjadi 4.087 data train (yang diseimbangkan lewat Random Oversampling
+menjadi 7.776 baris 50:50) dan 1.022 data test murni (50 kasus stroke = 4,89%).
+
+Di Progress 3 ini, sesuai tujuan Business Understanding yaitu screening medis
+untuk meminimalkan pasien stroke yang terlewat (memaksimalkan Recall), kami
+memilih 4 model klasifikasi dari materi praktikum: Logistic Regression, KNN,
+Decision Tree, dan Random Forest. Semua tahap acak dikunci dengan
+random_state=42 agar hasil identik saat dijalankan ulang. Pemilihan parameter
+dilakukan secara sistematis dengan Stratified 5-Fold Cross Validation memakai
+skor F2 (tanpa data leakage), bukan asal pilih. Hasil awal di data test
+menunjukkan keempat model mampu menangkap 80%-84% pasien stroke (40-42 dari 50
+kasus), dengan Logistic Regression sebagai model paling seimbang (F2 = 0,401;
+ROC-AUC = 0,838; PR-AUC = 0,267; False Positive terendah = 259).
+
+--------------------------------------------------------------------------------
+2. NASKAH & POIN BICARA PER SLIDE (SLIDE 1 - 11)
+--------------------------------------------------------------------------------
+
+[SLIDE 1 - COVER]
+Poin bicara:
+"Selamat pagi/siang, kami dari kelompok dengan anggota Munadhil, Dimas, dan
+Aditya akan mempresentasikan Weekly Report 3 untuk proyek Prediksi Risiko
+Stroke berdasarkan Indikator Medis dan Gaya Hidup, melanjutkan tahap
+preprocessing dari Progress 2 ke tahap modelling dan evaluasi awal."
+
+[SLIDE 2 - PEMILIHAN MODEL SESUAI BUSINESS UNDERSTANDING] -> Capaian #1 & #2
+Poin bicara:
+- Ingatkan dulu Business Understanding: kasus kita adalah klasifikasi biner
+  untuk screening awal risiko stroke. Karena False Negative (pasien berisiko
+  dinyatakan aman) jauh lebih berbahaya daripada False Positive, metrik utama
+  adalah RECALL.
+- Kita memilih 4 model dari materi praktikum dengan peran yang saling melengkapi:
+  1. Logistic Regression (Baseline linear): cepat, stabil, menghasilkan
+     probabilitas risiko, dan koefisiennya mudah dijelaskan ke dokter/tenaga
+     medis. Cocok karena fitur numerik sudah distandardisasi (StandardScaler).
+  2. K-Nearest Neighbors / KNN (Pembanding berbasis jarak): non-parametrik,
+     tidak mengasumsikan hubungan linear. Cocok karena StandardScaler membuat
+     skala jarak antar fitur setara; dipakai menguji apakah pasien stroke
+     mengelompok di ruang fitur.
+  3. Decision Tree (Aturan if-then): menghasilkan aturan yang mudah dibaca
+     (misal usia > sekian dan punya hipertensi), serta tahan terhadap outlier
+     glukosa yang memang sengaja kita pertahankan karena valid secara medis.
+  4. Random Forest (Ensemble 100 pohon): gabungan banyak pohon untuk menekan
+     overfitting pohon tunggal dan menangkap interaksi non-linear antar fitur
+     (mengingat korelasi linear tertinggi di EDA hanya r = 0,245 pada age).
+- Kesimpulan slide: 4 model ini membandingkan pendekatan linear, berbasis jarak,
+  pohon tunggal, dan ensemble pada data yang kecil & timpang (249 kasus stroke).
+
+[SLIDE 3 - DATA TRAIN PROGRESS 2 & REPRODUKSIBILITAS] -> Capaian #3 & #4
+Poin bicara:
+- Jelaskan data yang dipakai melatih model berasal langsung dari Progress 2:
+  * Data train awal (80% split): 4.087 baris (199 stroke = 4,9%).
+  * Setelah Random Oversampling (tanpa data sintetis, hanya pada train):
+    7.776 baris (3.888 non-stroke : 3.888 stroke = 50:50), 20 kolom fitur.
+  * Data test (20% split): tetap asli 1.022 baris (50 stroke = 4,89%) agar
+    evaluasi mencerminkan kondisi dunia nyata.
+- Tekankan Reproduksibilitas (Capaian #4):
+  * Kami menetapkan RANDOM_STATE = 42 di semua titik acak: train_test_split,
+    random_oversample (np.random.RandomState & pandas sample), StratifiedKFold,
+    serta konstruktor LogisticRegression, DecisionTreeClassifier, dan
+    RandomForestClassifier (KNN bersifat deterministik).
+  * Ketika notebook dijalankan ulang dari atas sampai bawah, parameter terbaik
+    dan seluruh metrik hasil uji tetap sama persis.
+
+[SLIDE 4 - PROSES TRAINING & PENJELASAN BLOK KODE] -> Capaian #3
+Poin bicara (urut angka 1 sampai 6 pada diagram):
+1. Blok 1 (Helper & Pipeline): Import 4 model & metrik sklearn, definisikan
+   build_preprocessor() (imputasi median + StandardScaler untuk numerik,
+   imputasi modus + OneHotEncoder untuk kategorikal) dan random_oversample().
+2. Blok 2 (CV Bersih / Anti-Leakage): Fungsi cv_scores() menjalankan
+   Stratified 5-Fold CV. Di dalam setiap fold, preprocessor di-fit dan
+   oversampling dilakukan HANYA pada train-fold, sedangkan validasi-fold hanya
+   di-transform dan dibiarkan berdistribusi asli (~4,9%).
+3. Blok 3 (Ruang Tuning): Menguji daftar nilai kandidat parameter tiap model
+   dari sederhana sampai kompleks, lalu memilih yang CV F2-nya tertinggi.
+4. Blok 4 (Kurva Tuning): Memplot CV Recall dan CV F2 per nilai parameter agar
+   pemilihan parameter terbukti secara visual.
+5. Blok 5 (Training Final): Melatih ulang keempat model dengan parameter terbaik
+   pada seluruh X_train_balanced (7.776 data Progress 2), lalu memprediksi
+   kelas & probabilitas pada X_test_df (1.022 data).
+6. Blok 6-7 (Uji & Inspeksi): Menampilkan 10 pasien uji dengan probabilitas
+   stroke tertinggi dan Confusion Matrix keempat model.
+
+[SLIDE 5 - PENGATURAN PARAMETER (STRATIFIED 5-FOLD CV)] -> Capaian #5
+Poin bicara:
+- Bagaimana cara memilih parameter agar tidak asal pilih?
+  1. Dilakukan lewat Stratified 5-Fold Cross Validation HANYA pada data train
+     (data test tidak disentuh sama sekali selama tuning).
+  2. Kriteria pemilihannya adalah SKOR F2 (beta=2), yang membobotkan Recall 4x
+     lebih penting daripada Precision.
+  3. Kenapa tidak pakai Recall murni? Karena Recall murni akan selalu memilih
+     model ekstrem yang menebak semua pasien "stroke" (Recall 100%, tapi
+     Precision 5% sehingga tidak berguna). F2 tetap mengutamakan Recall sambil
+     menghukum alarm palsu yang berlebihan.
+- Bacakan ringkas kandidat yang diuji & hasil terbaiknya:
+  * Logistic Regression (C: 0.01, 0.1, 1, 10) -> terbaik C = 1.0 (CV F2 = 0,408)
+  * KNN (n_neighbors: 3, 5, 11, 21, 51, 101, 151) -> terbaik k = 101 (CV F2 = 0,377)
+  * Decision Tree (max_depth: 2, 3, 4, 5, 7, 10, None) -> terbaik depth = 3 (CV F2 = 0,380)
+  * Random Forest (max_depth: 3, 5, 8, 12, None) -> terbaik depth = 5 (CV F2 = 0,380)
+
+[SLIDE 6 - KURVA TUNING: PENGARUH PARAMETER KE RECALL & F2] -> Capaian #5
+Poin bicara (jelaskan pola tiap panel dari kiri ke kanan):
+- Logistic Regression: garis Recall (~0,809) dan F2 (~0,408) hampir datar,
+  artinya model linear sangat stabil dan tidak sensitif terhadap C.
+- KNN: pada k kecil (k=3, 5), F2 sangat buruk (0,142 dan 0,185) karena salinan
+  duplikat hasil random oversampling berkumpul menjadi tetangga terdekat
+  (overfitting). Saat k diperbesar, prediksi lebih halus dan memuncak di k=101
+  (Recall 0,824; F2 0,377) lalu sedikit turun di k=151.
+- Decision Tree: max_depth=2 punya Recall sangat tinggi (0,960) tapi terlalu
+  banyak menebak stroke (Precision hanya 0,102). Sebaliknya max_depth=None
+  (pohon tumbuh penuh) justru menghafal data oversampling sehingga Recall di
+  validasi jatuh ke 0,101. Titik optimal ada di max_depth=3 (F2 = 0,380).
+- Random Forest: polanya sama dengan Decision Tree; depth=12 dan None
+  overfitting ke duplikat (Recall jatuh ke 0,110 dan 0,025). Titik optimal
+  ada di max_depth=5 (Recall 0,849; F2 = 0,380).
+
+[SLIDE 7 - PERBANDINGAN HASIL MODELLING PADA DATA TEST] -> Capaian #6 & #7
+Poin bicara:
+- Ini adalah tabel perbandingan lengkap keempat model pada 1.022 data test asli
+  (50 pasien stroke aktual, 972 non-stroke):
+  * Logistic Regression (C=1.0): Recall 0,800 | Prec 0,134 | F1 0,229 |
+    F2 0,401 | ROC-AUC 0,838 | PR-AUC 0,267 | TP 40, FN 10, FP 259, TN 713.
+  * KNN (k=101): Recall 0,800 | Prec 0,119 | F1 0,207 | F2 0,372 |
+    ROC-AUC 0,815 | PR-AUC 0,191 | TP 40, FN 10, FP 297, TN 675.
+  * Decision Tree (depth=3): Recall 0,840 | Prec 0,105 | F1 0,186 | F2 0,349 |
+    ROC-AUC 0,821 | PR-AUC 0,183 | TP 42, FN 8, FP 359, TN 613.
+  * Random Forest (depth=5): Recall 0,820 | Prec 0,110 | F1 0,193 | F2 0,357 |
+    ROC-AUC 0,822 | PR-AUC 0,238 | TP 41, FN 9, FP 333, TN 639.
+- Highlight 3 KPI di atas: Decision Tree meraih Recall tertinggi (84% = 42/50),
+  tetapi Logistic Regression meraih F2 (0,401), ROC-AUC (0,838), PR-AUC (0,267),
+  dan Precision (0,134) tertinggi sekaligus FP terendah (259).
+
+[SLIDE 8 - VISUALISASI PERFORMA & KURVA ROC / PR] -> Capaian #6 & #7
+Poin bicara:
+- Grafik batang di kiri memperlihatkan bahwa selisih Recall antar model tipis
+  (0,80 sampai 0,84, hanya selisih 1-2 pasien dari 50 kasus), sehingga pembeda
+  yang lebih jelas terlihat pada F2 dan PR-AUC.
+- Kurva ROC dan Precision-Recall di kanan menunjukkan bahwa Logistic Regression
+  memiliki kemampuan pemeringkatan probabilitas paling baik (ROC-AUC 0,838 dan
+  PR-AUC 0,267, lebih dari 5x lipat baseline acak 0,049).
+
+[SLIDE 9 - HASIL AWAL: CONFUSION MATRIX DATA TEST] -> Capaian #6 & #8
+Poin bicara:
+- Tunjukkan angka nyata pasien dari Confusion Matrix:
+  * Dari 50 pasien stroke aktual di data test, keempat model berhasil
+    menangkap 40 sampai 42 pasien (TP), dan hanya melewatkan 8 sampai 10 pasien
+    (FN). Bandingkan dengan model naif yang selalu tebak 0 (TP = 0, FN = 50).
+  * Harga yang dibayar adalah 259 sampai 359 False Positive (alarm palsu).
+    Logistic Regression paling hemat dengan 259 FP (100 lebih sedikit daripada
+    Decision Tree yang 359 FP).
+
+[SLIDE 10 - CONTOH PREDIKSI AWAL & FAKTOR PENDORONG] -> Capaian #6
+Poin bicara:
+- Tabel kiri adalah 10 pasien test dengan probabilitas stroke tertinggi versi
+  model terbaik (Logistic Regression), berkisar antara 0,925 hingga 0,970.
+- Seluruh 10 pasien ini berusia lanjut (78-82 tahun), mayoritas memiliki
+  hipertensi dan kadar glukosa tinggi (>200 mg/dL).
+- Dari 10 pasien paling berisiko ini, 4 pasien benar-benar stroke aktual (40%,
+  atau 8x lipat rata-rata dataset 4,9%).
+- Grafik di kanan (Top 6 Fitur) menegaskan bahwa 'age' adalah fitur paling
+  dominan baik di koefisien Logistic Regression maupun Gini Importance Random
+  Forest, konsisten dengan korelasi & Mutual Information di Progress 2.
+
+[SLIDE 11 - 4 POIN KUNCI HASIL AWAL] -> Capaian #8
+Poin bicara:
+- Tutup dengan 4 kesimpulan singkat:
+  01. Tujuan awal screening tercapai: Recall 80%-84% (jauh di atas baseline 0).
+  02. Logistic Regression menjadi kandidat terbaik sementara (F2, ROC-AUC,
+      PR-AUC, Precision terbaik & FP terendah).
+  03. Precision masih rendah (10,5%-13,4% atau ~1 dari 10 prediksi positif yang
+      benar stroke); untuk screening awal masih wajar, tapi jadi catatan penting.
+  04. Ini baru hasil awal (test hanya punya 50 kasus stroke). Langkah lanjutan:
+      penyesuaian threshold probabilitas, eksperimen class_weight='balanced'
+      tanpa oversampling duplikat, dan validasi dengan Repeated Stratified CV.
+
+--------------------------------------------------------------------------------
+3. CONTOKAN PENJELASAN KODE NOTEBOOK (JIKA DIMINTA DEMO KODE)
+--------------------------------------------------------------------------------
+- Cell 10 (Progress 2): Split 80:20 (stratify=y, random_state=42) -> fit
+  ColumnTransformer di X_train -> transform X_test -> hasil 4.087x20 dan
+  1.022x20 -> random oversampling di train saja jadi 7.776x20 (3.888 vs 3.888).
+- Cell 16 (Blok 1): Mengimpor 4 model & metrik. Membuat build_preprocessor()
+  agar pipeline bersih (belum di-fit) dan random_oversample() memakai
+  np.random.RandomState(42) agar deterministik.
+- Cell 17 (Blok 2): cv_scores() memakai StratifiedKFold(5, shuffle=True,
+  random_state=42). Penting: `pre.fit_transform(X_train.iloc[tr_idx])` dan
+  `random_oversample(...)` hanya dijalankan pada train-fold, sedangkan
+  validasi-fold hanya `pre.transform(...)` agar tidak ada data leakage.
+- Cell 18 (Blok 3): Dictionary `search_space` menyimpan 4 model dan rentang
+  parameter masing-masing. Loop mengevaluasi semua nilai lewat CV dan memilih
+  `idxmax()` berdasarkan `CV F2`.
+- Cell 19 (Blok 4): Memplot CV Recall & CV F2 untuk tiap nilai parameter.
+- Cell 22 (Blok 5): Loop `search_space`, membuat model dengan `best_params`,
+  `.fit(X_train_balanced, y_train_balanced)` (data train hasil Progress 2),
+  lalu `.predict(X_test_df)` dan `.predict_proba(X_test_df)[:, 1]`.
+- Cell 23 (Blok 6 & 7): Menggabungkan X_test asli dengan y_test, prob_stroke,
+  dan prediksi; mengurutkan 10 probabilitas tertinggi; memplot 4 Confusion Matrix.
+
+--------------------------------------------------------------------------------
+4. ANTISIPASI PERTANYAAN DOSEN / ASISTEN & CARA MENJAWABNYA
+--------------------------------------------------------------------------------
+
+[KATEGORI A: PEMILIHAN MODEL & DATA]
+
+Q1: Kenapa tidak pakai Accuracy saja? Bukannya lebih mudah dipahami?
+Jawab:
+"Karena dataset sangat tidak seimbang: 95,13% pasien tidak stroke dan hanya
+4,87% yang stroke. Jika model malas dan menebak semua orang 'tidak stroke',
+Accuracy-nya sudah 95,13%, padahal Recall-nya 0% (semua pasien stroke lolos).
+Sesuai Business Understanding untuk screening medis, False Negative sangat
+berbahaya, sehingga metrik utama kami adalah Recall."
+
+Q2: Kenapa memilih 4 model ini, bukan model lain seperti XGBoost/SVM/MLP?
+Jawab:
+"Keempat model ini berasal langsung dari materi praktikum dan mewakili 4
+keluarga algoritma berbeda: linear (Logistic Regression), berbasis jarak (KNN),
+pohon keputusan tunggal yang mudah dibaca aturan if-then-nya (Decision Tree),
+dan ensemble (Random Forest). Dengan 4 model ini kita bisa membandingkan
+kompleksitas sederhana vs kompleks pada data berjumlah kecil (249 kasus stroke)."
+
+Q3: Kenapa fitur `bmi` tetap dipakai padahal di Progress 2 korelasinya cuma 0,036?
+Jawab:
+"Korelasi Pearson hanya mengukur hubungan linear. Secara medis BMI tetap faktor
+risiko penting yang bisa berinteraksi secara non-linear dengan usia atau
+glukosa (misalnya di Decision Tree/Random Forest), dan kami hanya membuang
+kolom `id` yang memang non-prediktif."
+
+Q4: Kenapa fitur numerik di-scale pakai StandardScaler? Memangnya Tree butuh?
+Jawab:
+"Decision Tree dan Random Forest sebenarnya tidak butuh scaling, tetapi
+Logistic Regression dan KNN sangat bergantung pada skala fitur (terutama KNN
+yang menghitung jarak Euclidean). Karena kita memakai pipeline preprocessing
+yang seragam dari Progress 2 untuk keempat model agar adil, StandardScaler
+tetap diterapkan dan tidak merugikan model berbasis pohon."
+
+[KATEGORI B: PROSES TRAINING & REPRODUKSIBILITAS]
+
+Q5: Kenapa Random Oversampling dilakukan, dan kenapa tidak di data test juga?
+Jawab:
+"Random Oversampling dilakukan hanya pada data train (dari 199 menjadi 3.888
+kasus stroke) agar model tidak bias ke kelas mayoritas saat belajar. Data test
+HARUS dibiarkan asli (4,89% stroke) karena di dunia nyata prevalensi pasien juga
+timpang. Jika data test ikut di-oversample, hasil evaluasi akan menipu/bias."
+
+Q6: Kenapa di Progress 2 dan 3 pakai Random Oversampling, bukan SMOTE?
+Jawab:
+"Pada notebook Progress 2/3 kami memilih Random Oversampling bawaan pandas/numpy
+(menggandakan sampel minoritas yang ada) agar tidak membuat data pasien
+sintetis buatan pada fitur campuran numerik-kategorikal, sekaligus menjaga
+pipeline tetap standar scikit-learn/pandas. Namun efek samping duplikat ini
+terlihat saat tuning (misal KNN k kecil overfitting), sehingga di tahap
+berikutnya kami rencanakan membandingkannya dengan `class_weight='balanced'`."
+
+Q7: Apa bukti tidak ada Data Leakage di proses training dan CV kalian?
+Jawab:
+"Ada dua lapisan pencegahan leakage:
+1) Train-test split (80:20) dilakukan paling awal sebelum imputasi median,
+   StandardScaler, dan oversampling.
+2) Di dalam fungsi `cv_scores()` (Blok 2), kami tidak langsung memakai
+   X_train_balanced untuk CV! Jika langsung CV di data yang sudah di-oversample,
+   salinan pasien stroke yang sama bisa masuk ke train-fold dan val-fold
+   sekaligus (bocor!). Karena itu di setiap fold CV, kami fit preprocessor dan
+   random oversampling HANYA pada train-fold, sedangkan val-fold murni data asli."
+(Catatan: Jawaban ini biasanya dapat nilai plus besar dari dosen!)
+
+Q8: Bagaimana membuktikan hasil tetap sama jika dijalankan ulang?
+Jawab:
+"Kami mengunci `RANDOM_STATE = 42` di variabel global dan memasukkannya ke
+semua fungsi acak: train_test_split, random_oversample, StratifiedKFold,
+LogisticRegression, DecisionTreeClassifier, dan RandomForestClassifier. KNN
+tidak punya random_state karena perhitungannya murni deterministik berbasis
+jarak. Sudah kami verifikasi dengan run ulang dan hasilnya identik."
+
+[KATEGORI C: PENGATURAN PARAMETER (TUNING)]
+
+Q9: Kenapa memilih parameter terbaik pakai skor F2, bukan Recall atau F1?
+Jawab:
+"Kalau pakai Recall murni, model yang asal menebak semua pasien 'stroke' akan
+mendapat Recall 1,00 dan pasti terpilih, padahal tidak berguna secara klinis.
+F1 memberi bobot sama antara Precision dan Recall, padahal di kasus medis Recall
+jauh lebih krusial. Skor F2 (beta=2) memberi bobot Recall 4x lebih besar dari
+Precision, jadi tetap memprioritaskan deteksi stroke namun menghukum model
+yang terlalu banyak alarm palsu."
+
+Q10: Kenapa di KNN nilai k=3 dan k=5 jelek sekali (F2 cuma 0,14-0,18), lalu k=101
+     malah bagus (0,377)?
+Jawab:
+"Karena data train-fold diseimbangkan dengan Random Oversampling (duplikasi
+baris minoritas). Jika k kecil (3 atau 5), tetangga terdekat dari pasien
+minoritas hanyalah salinan dirinya sendiri atau noise lokal, sehingga batas
+keputusan terlalu sempit dan gagal generalisasi ke validasi-fold yang asli.
+Dengan k besar (101), voting melibatkan lebih banyak tetangga sehingga
+keputusan lebih halus dan Recall validasi naik ke 0,824."
+
+Q11: Kenapa di Decision Tree (max_depth=None) dan Random Forest (max_depth=None)
+     Recall-nya jatuh parah jadi 0,101 dan 0,025?
+Jawab:
+"Pohon yang dibiarkan tumbuh tanpa batas kedalaman (None) akan membuat daun-daun
+yang sangat spesifik hanya untuk menghafal salinan duplikat dari 199 kasus
+stroke di data train. Akibatnya model mengalami overfitting berat: saat bertemu
+pasien baru di validasi-fold yang fiturnya sedikit berbeda, pohon gagal
+mengenali kelas stroke sehingga Recall anjlok."
+
+Q12: Di Decision Tree, max_depth=2 Recall-nya 0,960 (lebih tinggi dari depth=3
+     yang 0,753). Kenapa tetap pilih max_depth=3?
+Jawab:
+"Karena pada max_depth=2 Precision-nya turun ke 0,102 (hampir semua pasien
+ditandai berisiko), sehingga skor CV F2-nya (0,358) masih kalah dari
+max_depth=3 (CV F2 = 0,380 dengan Precision lebih baik 0,129). Sesuai aturan
+tuning, kami memilih berdasarkan F2 tertinggi agar seimbang."
+
+Q13: Di Logistic Regression, C=0.1 dan C=1.0 sama-sama punya CV F2 0,408. Kenapa
+     yang terpilih C=1.0?
+Jawab:
+"Pada tabel yang dibulatkan 3 angka di belakang koma memang sama-sama 0,408,
+tetapi nilai eksaknya C=1.0 sedikit lebih tinggi (0,4085 vs 0,4080; dengan
+CV Precision 0,1371 vs 0,1368). Secara umum Logistic Regression stabil di
+semua nilai C yang diuji (0,01 sampai 10)."
+
+[KATEGORI D: HASIL MODELLING & INTERPRETASI]
+
+Q14: Jadi model mana yang paling bagus dari hasil awal ini?
+Jawab:
+"Tergantung prioritasnya, tetapi secara keseluruhan Logistic Regression paling
+seimbang dan kuat sebagai kandidat utama sementara:
+- Decision Tree (max_depth=3) punya Recall test tertinggi (0,840; menangkap
+  42/50 stroke), namun dengan alarm palsu terbanyak (359 FP).
+- Logistic Regression (C=1.0) menangkap 40/50 stroke (Recall 0,800, hanya beda
+  2 pasien), tetapi unggul di F2 (0,401), Precision (0,134), ROC-AUC (0,838),
+  PR-AUC (0,267), dan paling sedikit alarm palsu (259 FP)."
+
+Q15: Kenapa Random Forest yang lebih canggih malah kalah dari Logistic
+     Regression di F2, ROC-AUC, dan PR-AUC?
+Jawab:
+"Ada dua penyebab utama:
+1) Ukuran kasus positif sangat kecil (hanya 199 baris unik stroke di data
+   train dan 50 di test), sehingga model kompleks lebih mudah overfit.
+2) Faktor pendorong stroke paling kuat di dataset ini adalah `age` (usia),
+   yang hubungannya monoton (semakin tua risiko semakin tinggi), sehingga model
+   linear seperti Logistic Regression sudah sangat efektif memetakan risiko
+   tanpa perlu banyak percabangan kompleks."
+
+Q16: Precision cuma 10,5%-13,4%, bukannya itu jelek sekali? Berarti 87% salah?
+Jawab:
+"Perlu dibandingkan dengan base rate (prevalensi asli) stroke di data test yang
+hanya 4,89%. Precision 13,4% pada Logistic Regression berarti peluang pasien
+yang ditandai berisiko benar-benar stroke adalah hampir 3x lipat tebakan acak.
+Bahkan pada 10 pasien dengan probabilitas tertinggi (Slide 10), 40% di
+antaranya benar stroke (8x lipat base rate). Dalam konteks screening awal
+medis, ini masih wajar karena pasien yang ditandai positif akan diarahkan ke
+pemeriksaan dokter/lab lanjutan, bukan langsung tindakan invasif."
+
+Q17: Kenapa nilai ROC-AUC tinggi (0,815-0,838) tapi PR-AUC terlihat rendah
+     (0,183-0,267)?
+Jawab:
+"Karena ROC-AUC baseline acaknya selalu 0,50, sedangkan PR-AUC baseline acaknya
+sama dengan proporsi kelas positif (0,049). Jadi PR-AUC 0,267 milik Logistic
+Regression sebenarnya sudah lebih dari 5x lipat baseline acak (0,049). PR-AUC
+memang selalu terlihat lebih ketat pada dataset yang sangat imbalanced."
+
+Q18: Apa langkah perbaikan yang akan dilakukan di Progress selanjutnya?
+Jawab:
+"Karena ini masih hasil awal (dan test set hanya berisi 50 kasus stroke),
+langkah lanjutan yang kami siapkan adalah:
+1) Threshold tuning (menggeser ambang probabilitas dari default 0,50) untuk
+   melihat kurva trade-off Recall vs Precision yang optimal secara klinis.
+2) Membandingkan Random Oversampling dengan `class_weight='balanced'` pada
+   data train asli tanpa duplikasi baris (untuk mengatasi overfitting KNN/Tree).
+3) Validasi ulang dengan Repeated Stratified Cross-Validation agar estimasi
+   performa tidak terlalu bergantung pada satu pembagian 50 kasus stroke."
+
+--------------------------------------------------------------------------------
+5. TIPS CEPAT SEBELUM MAJU PRESENTASI
+--------------------------------------------------------------------------------
+1. Jangan bilang "Accuracy model kami 80%!" -> Selalu sebut "RECALL 80%-84%".
+   Salah menyebut Recall sebagai Accuracy adalah kesalahan paling sering terjadi.
+2. Ingat angka inti tanpa melihat catatan:
+   - Total data bersih: 5.109 | Train awal: 4.087 -> Balanced: 7.776 | Test: 1.022 (50 stroke)
+   - Random state: 42
+   - Best CV F2 params: LogReg C=1.0 | KNN k=101 | Decision Tree depth=3 | Random Forest depth=5
+   - Best Test Recall: Decision Tree 0,840 (42/50)
+   - Best Test F2 & AUC: Logistic Regression (Recall 0,800 | F2 0,401 | ROC-AUC 0,838 | PR-AUC 0,267 | FP 259)
+3. Siapkan notebook `strokePrediction_progress3.ipynb` dalam keadaan sudah di-run
+   semua cell-nya, jadi kalau dosen tanya baris kode atau minta cek ulang,
+   langsung scroll ke Blok 1-7 dengan percaya diri.
+================================================================================
+
+
+================================================================================
+6. PANDUAN PELAFALAN / CARA BACA ISTILAH (BIAR LANCAR SAAT PRESENTASI)
+================================================================================
+Format: Istilah Asli  -->  Cara Baca (Logat Indonesia yang natural & jelas)
+
+[A. NAMA MODEL]
+- Logistic Regression     --> "Lo-jis-tik Ri-gre-syen"
+- K-Nearest Neighbors     --> "Kei Ni-res Nei-bers" (singkat: "Kei-En-En" / KNN)
+- Decision Tree           --> "Di-si-syen Tri"
+- Random Forest           --> "Ren-dem Fo-res"
+- Baseline                --> "Beis-lain" (model patokan awal)
+- Ensemble                --> "An-sam-bel" (atau "Ong-som-bel", gabungan banyak model)
+
+[B. METRIK & EVALUASI]
+- Recall                  --> "Ri-kol" (sensitivitas menangkap kasus positif)
+- Precision               --> "Pri-si-syen" (ketepatan tebakan positif)
+- Accuracy                --> "E-kyu-re-si"
+- F1-Score / F2-Score     --> "Ef-Wan Skor" / "Ef-Tu Skor"
+- ROC-AUC                 --> "Ar-O-Si Ei-Yu-Si" (Receiver Operating Characteristic - Area Under Curve)
+- PR-AUC                  --> "Pi-Ar Ei-Yu-Si" (Precision-Recall Area Under Curve)
+- Confusion Matrix        --> "Kon-fyu-syen Mei-triks"
+- True Positive (TP)      --> "Tru Po-zi-tif" (benar stroke, ditebak stroke)
+- False Negative (FN)     --> "Fols Ne-ga-tif" (asli stroke, tapi lolos ditebak aman -> BERBAHAYA)
+- False Positive (FP)     --> "Fols Po-zi-tif" (asli sehat, tapi kena alarm palsu stroke)
+- True Negative (TN)      --> "Tru Ne-ga-tif" (asli sehat, ditebak sehat)
+- Threshold               --> "Tres-hold" (ambang batas probabilitas, default 0,5)
+- Base rate               --> "Beis reit" (persentase kejadian asli di data, 4,89%)
+
+[C. DATA, PREPROCESSING & PROSES TRAINING]
+- Business Understanding  --> "Bis-nis An-der-sten-ding"
+- Class Imbalance         --> "Klas Im-be-lens" (ketimpangan jumlah kelas)
+- Stratified Split        --> "Stre-ti-faid Split" (bagi data dengan menjaga rasio kelas)
+- Data Leakage            --> "Dei-ta Li-kej" (kebocoran informasi data uji ke latih)
+- Random Oversampling     --> "Ren-dem O-ver-sem-pling"
+- SMOTE                   --> "Smout" (Synthetic Minority Over-sampling Technique)
+- StandardScaler          --> "Sten-derd Skei-ler"
+- One-Hot Encoding        --> "Wan-Hot En-ko-ding"
+- SimpleImputer           --> "Sim-pel Im-pyu-ter"
+- ColumnTransformer       --> "Ko-lem Trans-for-mer"
+- Outlier                 --> "Aut-la-yer" (nilai ekstrem)
+- Skewed / Right-skewed   --> "Skyud" / "Rait-skyud" (distribusi menceng ke kanan)
+- Mutual Information      --> "Myu-cul In-for-mei-syen"
+- Gini Importance         --> "Ji-ni Im-por-tens"
+- Screening               --> "Skri-ning" (penapisan/deteksi awal)
+
+[D. TUNING & PARAMETER KODE]
+- Hyperparameter          --> "Hai-per-pa-ra-mi-ter"
+- Stratified K-Fold CV    --> "Stre-ti-faid Kei-Fold Kros Ve-li-dei-syen"
+- Overfitting             --> "O-ver-fi-ting" (terlalu menghafal data latih)
+- Underfitting            --> "An-der-fi-ting" (model terlalu kaku / kurang belajar)
+- random_state            --> "ren-dem steit"
+- n_neighbors             --> "en nei-bers" (jumlah tetangga di KNN)
+- max_depth               --> "meks dep" (kedalaman maksimum pohon)
+- n_estimators            --> "en es-ti-mei-tors" (jumlah pohon di Random Forest)
+- class_weight='balanced' --> "klas weit be-lens"
+- idxmax()                --> "ai-di-eks meks" (mengambil indeks dengan nilai tertinggi)
+
+Contoh pengucapan mulus dalam kalimat:
+- "Karena datanya mengalami *klas im-be-lens* ekstrem (4,87% stroke), kami
+  mengutamakan metrik *Ri-kol* untuk menekan *Fols Ne-ga-tif*."
+- "Agar tidak terjadi *dei-ta li-kej*, *Sten-derd Skei-ler* dan *Ren-dem
+  O-ver-sem-pling* hanya di-fit pada *train-fold* di dalam *Stre-ti-faid
+  Five-Fold Kros Ve-li-dei-syen*."
+
+================================================================================
+7. DETAIL MENDALAM: PEMILIHAN MODEL, CARA KERJA & PARAMETER TIAP MODEL
+================================================================================
+
+Alasan Umum Mengapa Memilih 4 Model Ini (Bukan Cuma 1 Model):
+1. Semua berasal dari materi praktikum (Logistic Regression, KNN, Decision Tree,
+   Random Forest).
+2. Di Progress 2 (Slide 8 & 9), kita menemukan bahwa korelasi linear tiap fitur
+   terhadap stroke relatif lemah (maksimal `age` hanya r = 0,245, fitur lain
+   <= 0,135). Karena itu tidak cukup hanya mencoba 1 model linear; kita perlu
+   membandingkan 4 paradigma berbeda:
+   - Linear/Probabilistik  --> Logistic Regression
+   - Berbasis Jarak        --> K-Nearest Neighbors (KNN)
+   - Berbasis Aturan Pohon --> Decision Tree
+   - Ensemble Banyak Pohon --> Random Forest
+3. Dengan membandingkan model sederhana vs kompleks, kita bisa tahu apakah
+   masalah stroke di data kecil (249 kasus positif) lebih cocok ditangani model
+   sederhana atau model non-linear yang lebih kompleks.
+
+--------------------------------------------------------------------------------
+MODEL 1: LOGISTIC REGRESSION (Peran: Baseline Linear & Probabilistik)
+--------------------------------------------------------------------------------
+- Cara kerja singkat (untuk dijelaskan ke dosen):
+  Menghitung kombinasi linear terbobot dari seluruh 20 fitur (z = w1*x1 + ... + b),
+  lalu memasukkannya ke fungsi sigmoid sehingga menghasilkan probabilitas risiko
+  stroke antara 0 sampai 1.
+- Kenapa cocok dengan data Progress 2 & tujuan Business Understanding:
+  1. Fitur numerik (`age`, `avg_glucose_level`, `bmi`) sudah distandardisasi
+     menggunakan StandardScaler, sehingga koefisien antar fitur berada pada
+     skala yang sebanding dan proses optimasi konvergen dengan cepat.
+  2. Menghasilkan probabilitas (`predict_proba`) yang sangat terkalibrasi untuk
+     kebutuhan ranking pasien berisiko di rumah sakit (terbukti Top-10 prediksi
+     dan PR-AUC tertinggi 0,267).
+  3. Koefisiennya bisa diaudit tenaga medis (fitur mana yang menaikkan atau
+     menurunkan risiko).
+- Parameter yang diatur (`C`):
+  * `C` adalah kebalikan dari kekuatan regularisasi (1 / lambda).
+  * `C` kecil (mis. 0,01) = regularisasi kuat (koefisien ditekan kecil, model
+    lebih sederhana). `C` besar (mis. 10) = regularisasi longgar (model lebih
+    bebas mengikuti data latih).
+  * Yang diuji: `[0.01, 0.1, 1, 10]`. Hasilnya CV F2 stabil di 0,402 - 0,408,
+    puncak eksak di `C = 1.0` (0,4085).
+  * `max_iter=1000` dipasang agar solver punya iterasi cukup untuk konvergen,
+    dan `random_state=42` dikunci.
+
+--------------------------------------------------------------------------------
+MODEL 2: K-NEAREST NEIGHBORS / KNN (Peran: Pembanding Non-Parametrik Berbasis Jarak)
+--------------------------------------------------------------------------------
+- Cara kerja singkat:
+  Tidak membentuk rumus atau aturan khusus saat training. Saat memprediksi
+  pasien baru, KNN mencari `k` pasien paling mirip (jarak Euclidean terdekat)
+  di data latih, lalu melakukan voting mayoritas kelasnya.
+- Kenapa cocok dengan data Progress 2 & tujuan Business Understanding:
+  1. Tidak berasumsi bahwa hubungan fitur dan stroke harus berbentuk garis
+     lurus (non-parametrik).
+  2. Sangat bergantung pada skala fitur: jika `avg_glucose_level` (puluhan-
+     ratusan) dan `hypertension` (0/1) tidak di-scale, jarak akan didominasi
+     glukosa. Karena Progress 2 sudah menerapkan `StandardScaler`, KNN menjadi
+     adil untuk diuji.
+  3. Berguna mengecek apakah pasien stroke memang "mengelompok berdekatan"
+     dengan sesama pasien stroke di ruang fitur klinis.
+- Parameter yang diatur (`n_neighbors` / `k`):
+  * `k` menentukan berapa banyak tetangga terdekat yang ikut voting.
+  * Yang diuji: `[3, 5, 11, 21, 51, 101, 151]`.
+  * Kenapa `k` kecil gagal? Pada `k=3` dan `k=5`, CV F2 sangat rendah (0,142
+    dan 0,185) karena data train hasil Random Oversampling berisi banyak
+    salinan duplikat. Jika `k` kecil, prediksi jadi sangat sensitif pada noise/
+    duplikat lokal (overfitting).
+  * Ketika `k` diperbesar, voting menjadi lebih halus (mengurangi noise) hingga
+    mencapai puncak CV F2 = 0,377 (CV Recall 0,824) pada `n_neighbors = 101`,
+    lalu mulai turun lagi di `151` (0,373). Jadi `k = 101` terpilih secara
+    objektif.
+
+--------------------------------------------------------------------------------
+MODEL 3: DECISION TREE (Peran: Model Non-Linear Berbasis Aturan If-Then)
+--------------------------------------------------------------------------------
+- Cara kerja singkat:
+  Membelah data secara bertahap berdasarkan fitur yang paling memisahkan kelas
+  stroke dan non-stroke (meminimalkan Gini Impurity), membentuk struktur
+  pohon berisi aturan keputusan `if-then`.
+- Kenapa cocok dengan data Progress 2 & tujuan Business Understanding:
+  1. Menghasilkan aturan keputusan yang sangat mudah dibaca tenaga medis
+     (misal: jika `age` tinggi dan punya `hypertension`, risiko meningkat),
+     selaras dengan temuan EDA Progress 2.
+  2. Tahan terhadap outlier pada `avg_glucose_level` (12,27% outlier) dan
+     `bmi` (2,15% outlier) yang sengaja dipertahankan karena valid secara medis
+     (indikasi diabetes/obesitas). Pohon hanya melihat titik potong/ambang,
+     bukan jarak atau rata-rata ekstrem.
+  3. Mampu menangkap interaksi sederhana antar fitur tanpa asumsi linear.
+- Parameter yang diatur (`max_depth`):
+  * `max_depth` membatasi seberapa dalam/panjang rantai aturan pohon boleh tumbuh.
+  * Yang diuji: `[2, 3, 4, 5, 7, 10, None]`.
+  * `max_depth=2` terlalu dangkal (underfitting / terlalu umum): Recall 0,960
+    tapi Precision 0,102 (hampir semua pasien ditebak stroke, F2 = 0,358).
+  * `max_depth=None` (pohon tumbuh penuh sampai daun murni): menghafal salinan
+    duplikat oversampling di train-fold (overfitting berat), sehingga saat
+    diuji di validasi-fold asli Recall anjlok ke 0,101 dan F2 ke 0,102!
+  * Titik tengah optimal adalah `max_depth = 3` dengan CV F2 tertinggi = 0,380
+    (CV Recall 0,753; CV Precision 0,129). Di data test, model ini mencetak
+    Recall tertinggi = 0,840 (42/50 kasus stroke tertangkap).
+
+--------------------------------------------------------------------------------
+MODEL 4: RANDOM FOREST (Peran: Model Ensemble Penekan Overfitting)
+--------------------------------------------------------------------------------
+- Cara kerja singkat:
+  Membangun banyak Decision Tree sekaligus (`n_estimators=100`) pada sampel
+  bootstrap acak dan subset fitur acak (teknik Bagging), lalu menggabungkan
+  prediksi seluruh pohon lewat voting/rata-rata probabilitas.
+- Kenapa cocok dengan data Progress 2 & tujuan Business Understanding:
+  1. Mengurangi varians / kecenderungan overfitting dari satu Decision Tree
+     tunggal.
+  2. Lebih kuat menangkap interaksi kompleks non-linear (misalnya kombinasi
+     `age` x `avg_glucose_level` x `bmi` x `hypertension`) ketika korelasi
+     tunggal antar fitur lemah.
+- Parameter yang diatur (`max_depth`, dengan `n_estimators=100` & `random_state=42`):
+  * Yang diuji: `[3, 5, 8, 12, None]`.
+  * Sama seperti Decision Tree, kedalaman terlalu besar (`12` dan `None`)
+    membuat tiap pohon menghafal salinan oversampling di train-fold sehingga
+    CV Recall jatuh ke 0,110 dan 0,025 (CV F2 0,116 dan 0,029).
+  * Titik optimal tercapai di `max_depth = 5` dengan CV Recall = 0,849 dan
+    CV F2 tertinggi = 0,380.
+  * Pada data test, Random Forest meraih Recall = 0,820 (41/50), ROC-AUC = 0,822,
+    dan PR-AUC = 0,238 (peringkat ke-2 terbaik setelah Logistic Regression).
+
+--------------------------------------------------------------------------------
+RINGKASAN PERBANDINGAN CEPAT 4 MODEL (UNTUK HAFALAN)
+--------------------------------------------------------------------------------
+Model                | Tipe          | Param Uji  | Terbaik | CV F2 | Test Rec | Test F2 | ROC-AUC | PR-AUC | FP
+---------------------+---------------+------------+---------+-------+----------+---------+---------+--------+-----
+Logistic Regression  | Linear        | C          | 1.0     | 0,408 | 0,800    | 0,401   | 0,838   | 0,267  | 259
+KNN                  | Jarak         | n_neighbors| 101     | 0,377 | 0,800    | 0,372   | 0,815   | 0,191  | 297
+Decision Tree        | Pohon tunggal | max_depth  | 3       | 0,380 | 0,840    | 0,349   | 0,821   | 0,183  | 359
+Random Forest        | Ensemble 100  | max_depth  | 5       | 0,380 | 0,820    | 0,357   | 0,822   | 0,238  | 333
+================================================================================
